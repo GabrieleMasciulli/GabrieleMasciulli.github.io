@@ -165,6 +165,8 @@
     .citation[hidden] { display: none; }
     footer { padding: 34px 18px 44px; text-align: center; color: var(--muted); font-size: .88rem; }
     footer a { color: var(--ink); }
+    footer p { margin: 0 0 14px; }
+    footer .counter { display: inline-block; }
 
     @media (max-width: 860px) {
       .nav-links a:not(.keep) { display: none; }
@@ -414,7 +416,10 @@
     </section>
   </main>
 
-  <footer><a href="../">Gabriele Masciulli</a> · ExGS project page</footer>
+  <footer>
+    <p><a href="../">Gabriele Masciulli</a> · ExGS project page</p>
+    <img class="counter" src="https://hits.sh/gmasciulli.com/exgs.svg?label=visits&amp;color=6b5bd2&amp;labelColor=777" alt="Visit counter" height="20">
+  </footer>
   <div class="backdrop" id="backdrop" hidden></div>
 
   <script>
