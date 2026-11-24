@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ExGS reconstructs a scene and multiple clean, extractable objects from a few images and 2D masks in a single feed-forward pass.">
+  <title>ExGS — Feed-Forward Gaussian Splatting with Extractable Objects</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1a1830;
+      --muted: #676b80;
+      --line: #e7e6f0;
+      --paper: #ffffff;
+      --soft: #f7f6fb;
+      --violet: #6b5bd2;
+      --violet-dark: #5344b8;
+      --pink: #bd366c;
+      --radius: 18px;
+      --content: 1120px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; color: var(--ink); background: var(--paper);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.55; -webkit-font-smoothing: antialiased;
+    }
+    img, video, canvas { display: block; max-width: 100%; }
+    img, video { height: auto; }
+    a { color: inherit; }
+    button { font: inherit; }
+    .grad {
+      background: linear-gradient(90deg, #7b6fc2 0 42%, var(--pink) 58% 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+
+    /* nav */
+    .nav { position: sticky; top: 0; z-index: 40; border-bottom: 1px solid rgba(231, 230, 240, .85); background: rgba(255, 255, 255, .88); backdrop-filter: blur(15px); }
+    .nav-inner { width: min(calc(100% - 36px), var(--content)); min-height: 58px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .brand { font-weight: 800; font-size: 1.1rem; letter-spacing: -.03em; text-decoration: none; }
+    .nav-links { display: flex; align-items: center; gap: 20px; }
+    .nav-links a { color: var(--muted); font-size: .9rem; font-weight: 600; text-decoration: none; }
+    .nav-links a:hover { color: var(--violet); }
+
+    /* entrance: a full screen for the title, then the page */
+    .hero {
+      overflow: hidden; padding: 0 18px 64px;
+      background:
+        radial-gradient(circle at 15% 22rem, rgba(107, 91, 210, .12), transparent 26rem),
+        radial-gradient(circle at 87% 10rem, rgba(189, 54, 108, .09), transparent 23rem),
+        linear-gradient(180deg, #faf9ff 0%, #fff 100%);
+    }
+    .entrance { position: relative; min-height: calc(100svh - 59px); display: grid; place-items: center; text-align: center; padding: 40px 0 90px; }
+    .eyebrow { margin: 0 0 16px; color: var(--violet); font-size: .78rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(4.4rem, 15vw, 9.5rem); line-height: .9; letter-spacing: -.06em; font-weight: 800; }
+    .subtitle { max-width: 720px; margin: 22px auto 0; color: #3f4158; font-size: clamp(1.15rem, 2.3vw, 1.6rem); line-height: 1.3; letter-spacing: -.02em; }
+    .authors { margin: 30px 0 4px; font-size: 1.05rem; }
+    .authors a { text-decoration: none; }
+    .authors a:hover { color: var(--violet); }
+    .authors sup, .affiliations sup { font-size: .68em; margin-left: 1px; }
+    .affiliations { margin: 0; color: var(--muted); font-size: .9rem; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 28px 0 0; }
+    .pill {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 18px;
+      border: 1px solid #d3d1e2; border-radius: 999px; background: #fff; color: var(--ink);
+      font-size: .91rem; font-weight: 700; text-decoration: none; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(26, 24, 48, .05);
+      transition: transform .18s ease, border-color .18s ease, color .18s ease, background .18s ease;
+    }
+    .pill:hover { transform: translateY(-2px); border-color: var(--violet); color: var(--violet); }
+    .pill.primary { border-color: var(--violet); background: var(--violet); color: #fff; }
+    .pill.primary:hover { background: var(--violet-dark); color: #fff; }
+    .pill.soon { color: var(--muted); cursor: default; box-shadow: none; background: transparent; border-style: dashed; }
+    .pill.soon:hover { transform: none; border-color: #d3d1e2; color: var(--muted); }
+    .pill small { font-weight: 500; font-size: .78rem; }
+    .cue { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: grid; gap: 4px; color: var(--muted); font-size: .8rem; font-weight: 600; text-decoration: none; }
+    .cue span:last-child { animation: bob 1.8s ease-in-out infinite; }
+    @keyframes bob { 50% { transform: translateY(5px); } }
+
+    .hero-view { width: min(100%, 1240px); margin: auto; text-align: center; scroll-margin-top: 76px; }
+    .modes { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin: 0 auto 14px; padding: 5px; border: 1px solid #d9d7e6; border-radius: 999px; background: rgba(255, 255, 255, .9); box-shadow: 0 6px 20px rgba(26, 24, 48, .07); }
+    .mode { padding: 8px 16px; border: 0; border-radius: 999px; background: transparent; color: #6c6f84; cursor: pointer; font-size: .84rem; font-weight: 700; }
+    .mode.active { background: var(--ink); color: #fff; }
+    .caption { max-width: 820px; margin: 14px auto 0; color: var(--muted); font-size: .92rem; }
+
+    /* split player: two synchronized views of one video, drawn into a canvas with a movable split */
+    .stage { position: relative; overflow: hidden; border: 1px solid #dddbe9; border-radius: 24px; background: #fff; box-shadow: 0 30px 85px rgba(20, 16, 50, .16); }
+    .player { position: relative; background: #fff center / cover no-repeat; cursor: ew-resize; touch-action: pan-y; }
+    .player canvas { width: 100%; height: 100%; }
+    .chip { position: absolute; z-index: 2; padding: 4px 10px; border-radius: 7px; background: rgba(255, 255, 255, .9); font-size: .78rem; font-weight: 700; pointer-events: none; box-shadow: 0 2px 8px rgba(26, 24, 48, .1); }
+    .chip.tl { top: 14px; left: 14px; }
+    .chip.br { right: 14px; bottom: 14px; color: var(--violet-dark); }
+    .chip small { font-weight: 500; color: var(--muted); }
+    .picker { position: absolute; z-index: 3; left: 14px; bottom: 14px; display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-radius: 12px; background: rgba(20, 18, 34, .72); backdrop-filter: blur(10px); }
+    .picker button { padding: 5px 11px; border: 0; border-radius: 8px; background: transparent; color: rgba(255, 255, 255, .78); font-size: .76rem; font-weight: 650; cursor: pointer; }
+    .picker button.active { background: #fff; color: var(--ink); }
+
+    /* sections */
+    .section { padding: 82px 18px; }
+    .section.alt { background: var(--soft); }
+    .wrap { width: min(100%, var(--content)); margin: auto; }
+    .section-head { max-width: 820px; margin: 0 auto 30px; text-align: center; }
+    h2 { margin: 0; font-size: clamp(1.9rem, 4vw, 3rem); line-height: 1.12; letter-spacing: -.04em; }
+    h3 { margin: 0; font-size: 1.12rem; letter-spacing: -.018em; }
+    .section-head p { margin: 14px auto 0; color: var(--muted); font-size: 1.02rem; }
+    .center { display: flex; justify-content: center; }
+    .tabs { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 5px; padding: 5px; border: 1px solid #d9d7e6; border-radius: 999px; background: #fff; }
+    .tab { padding: 7px 15px; border: 0; border-radius: 999px; background: transparent; color: #6c6f84; cursor: pointer; font-size: .84rem; font-weight: 700; }
+    .tab.active { background: var(--ink); color: #fff; }
+    .tabs.sub { border-color: transparent; background: transparent; margin-top: 8px; }
+    .tabs.sub .tab { border: 1px solid #d9d7e6; background: #fff; font-weight: 600; }
+    .tabs.sub .tab.active { border-color: var(--violet); background: #f1eefc; color: var(--violet-dark); }
+    .cmp { max-width: 860px; margin: 18px auto 0; }
+    .cmp .stage { border-radius: var(--radius); box-shadow: 0 13px 38px rgba(26, 24, 48, .09); }
+
+    /* fly-through grid */
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .fly { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; box-shadow: 0 13px 38px rgba(26, 24, 48, .07); cursor: zoom-in; }
+    .fly .player { cursor: inherit; }
+    .fly h3 { position: absolute; z-index: 2; left: 16px; bottom: 13px; padding: 4px 11px; border-radius: 8px; background: rgba(255, 255, 255, .9); font-size: .95rem; pointer-events: none; }
+    .backdrop { position: fixed; inset: 0; z-index: 1000; background: rgba(12, 10, 24, .78); }
+    .backdrop[hidden] { display: none; }
+    .fly.is-spotlight { position: fixed; z-index: 1001; top: 50%; left: 50%; width: min(94vw, 150vh, 1180px); transform: translate(-50%, -50%); cursor: zoom-out; box-shadow: 0 24px 100px rgba(0, 0, 0, .6); }
+
+    /* how it works */
+    .lead { max-width: 820px; margin: 0 auto 22px; font-size: 1.06rem; color: #33354a; }
+    .figure { padding: clamp(12px, 2.4vw, 26px); border: 1px solid var(--line); border-radius: var(--radius); background: #fff; box-shadow: 0 13px 38px rgba(26, 24, 48, .07); }
+    .switcher { margin-top: 54px; }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 760px; margin: 18px auto 0; }
+    .pair img { width: 100%; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+    .switcher-caption { max-width: 640px; min-height: 3.2em; margin: 14px auto 0; text-align: center; color: var(--muted); font-size: .95rem; }
+
+    /* result tables */
+    .tcard { margin-top: 18px; padding: 22px 24px 20px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; min-width: 0; }
+    .tcard[hidden] { display: none; }
+    .tcard.narrow { max-width: 640px; margin-left: auto; margin-right: auto; }
+    .tcard h3 { font-size: 1.02rem; }
+    .tcard .sub { margin: 4px 0 16px; color: var(--muted); font-size: .84rem; max-width: 62em; }
+    .tscroll { overflow-x: auto; }
+    .res { width: 100%; border-collapse: collapse; font-size: .82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .res th, .res td { padding: 6px 8px; text-align: right; }
+    .res th:first-child, .res td:first-child { text-align: left; }
+    .res thead th { color: var(--muted); font-size: .74rem; font-weight: 600; vertical-align: bottom; }
+    .res thead tr:last-child th { border-bottom: 1px solid #cfcde0; }
+    .res thead th.g { text-align: center; color: var(--ink); font-weight: 700; border-bottom: 1px solid var(--line); }
+    .res td.prim { text-align: left; color: var(--muted); }
+    .res tbody td { border-bottom: 1px solid #f0eff6; }
+    .res tr.fam td { padding-top: 12px; border-bottom: 0; color: var(--muted); font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .res td.best { font-weight: 800; }
+    .res td.second { text-decoration: underline; text-underline-offset: 3px; }
+    .res tr.us td { background: #f4f2fd; border-bottom: 0; }
+    .res tr.us td:first-child { color: var(--violet-dark); font-weight: 800; border-radius: 8px 0 0 8px; }
+    .res tr.us td:last-child { border-radius: 0 8px 8px 0; }
+    .tlegend { margin: 12px 0 0; text-align: center; color: var(--muted); font-size: .82rem; }
+
+    /* closing */
+    .film { overflow: hidden; max-width: 900px; margin: 0 auto; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; box-shadow: 0 13px 38px rgba(26, 24, 48, .09); }
+    .film video { width: 100%; }
+    .citation { max-width: 820px; margin: 22px auto 0; padding: 18px 20px; overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: #fff; font: 500 .84rem/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: left; }
+    .citation[hidden] { display: none; }
+    footer { padding: 34px 18px 44px; text-align: center; color: var(--muted); font-size: .88rem; }
+    footer a { color: var(--ink); }
+
+    @media (max-width: 860px) {
+      .nav-links a:not(.keep) { display: none; }
+      .section { padding: 60px 16px; }
+      .grid { grid-template-columns: 1fr; }
+      .stage { border-radius: 16px; }
+      .chip { font-size: .7rem; padding: 3px 8px; }
+      .chip.tl { top: 9px; left: 9px; }
+      .chip.br { right: 9px; bottom: 9px; }
+      .picker { left: 9px; bottom: 9px; padding: 4px; }
+      .picker button { padding: 4px 8px; font-size: .7rem; }
+      .hero .chip.br { bottom: auto; top: 9px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      * { transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav" aria-label="Page navigation">
+    <div class="nav-inner">
+      <a class="brand grad" href="#top">ExGS</a>
+      <div class="nav-links">
+        <a href="#compare">Baselines</a>
+        <a href="#flythroughs">Fly-throughs</a>
+        <a href="#method">How it works</a>
+        <a href="#benchmarks">Benchmarks</a>
+        <a class="keep" href="../">Gabriele Masciulli ↗</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="entrance">
+      <div>
+        <p class="eyebrow">One pass · the scene and its objects</p>
+        <h1><span class="grad">ExGS</span></h1>
+        <p class="subtitle">Feed-Forward Gaussian Splatting with Extractable Objects</p>
+        <p class="authors"><a href="../">Gabriele Masciulli</a><sup>1,2</sup> · Dániel Baráth<sup>1</sup> · Elisa Ricci<sup>2,3</sup> · Alessio Mazzucchelli<sup>3</sup></p>
+        <p class="affiliations"><sup>1</sup>ETH Zürich &nbsp; <sup>2</sup>University of Trento &nbsp; <sup>3</sup>Fondazione Bruno Kessler</p>
+        <div class="actions">
+          <span class="pill soon">Paper <small>soon</small></span>
+          <span class="pill soon">Code <small>soon</small></span>
+          <a class="pill primary" href="#explore">▶ Video</a>
+        </div>
+      </div>
+      <a class="cue" href="#view"><span>Scroll to explore</span><span aria-hidden="true">↓</span></a>
+    </div>
+
+    <div class="hero-view" id="view">
+      <div class="modes" role="tablist" aria-label="Display mode">
+        <button class="mode active" type="button" role="tab" aria-selected="true" data-b="1" data-label="Extracted objects">Scene → objects</button>
+        <button class="mode" type="button" role="tab" aria-selected="false" data-b="2" data-label="One colour per object">Colour-coded objects</button>
+      </div>
+      <div class="stage">
+        <div class="player" id="hero-player" data-src="assets/media/bed.mp4" data-panels="3" data-a="0" data-b="1" data-split="diag" data-auto="1" style="aspect-ratio:960/544">
+          <canvas aria-label="A fly-through of a scene reconstructed by ExGS. A diagonal line sweeps across it and leaves only the extracted objects; move the pointer to control the line."></canvas>
+          <span class="chip tl">Full scene</span>
+          <span class="chip br" data-chip="b">Extracted objects</span>
+          <div class="picker" role="group" aria-label="Scene">
+            <button class="active" type="button" data-src="assets/media/bed.mp4">Bed</button>
+            <button type="button" data-src="assets/media/room.mp4">Toys</button>
+            <button type="button" data-src="assets/media/snacks.mp4">Snacks</button>
+            <button type="button" data-src="assets/media/sofa.mp4">Sofa</button>
+          </div>
+        </div>
+      </div>
+      <p class="caption">From a few posed images and 2D masks, ExGS reconstructs the scene and all of its objects in one forward pass of 1.7&nbsp;seconds. Move the pointer over the scene to lift the objects out.</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="section alt" id="compare">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Objects that stay clean once extracted</h2>
+          <p>Every method gets the same posed views and masks. Lifted or optimized objects keep floaters and blurry boundaries; object models lose detail.</p>
+        </div>
+        <div class="center"><div class="tabs" id="cmp-scenes" role="tablist" aria-label="Object"></div></div>
+        <div class="center"><div class="tabs sub" id="cmp-methods" role="tablist" aria-label="Compared method"></div></div>
+        <div class="cmp">
+          <div class="stage">
+            <div class="player" id="cmp-player" data-split="vert" style="aspect-ratio:4/3">
+              <canvas aria-label="The same object from the same moving camera: a baseline on the left of the divider, ExGS on the right. Move the pointer to shift the divider."></canvas>
+              <span class="chip tl" data-chip="a"></span>
+              <span class="chip br">ExGS <small>1.7 s</small></span>
+            </div>
+          </div>
+        </div>
+        <p class="caption" style="text-align:center">Baseline on the left, ExGS on the right, from the same moving camera. Times are seconds per scene on one A100.</p>
+      </div>
+    </section>
+
+    <section class="section" id="flythroughs">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>The scene and its objects, reconstructed once</h2>
+          <p>Scenes unseen during training, each from 8 views. The line sweeps from the full scene to the object extracted from it.</p>
+        </div>
+        <div class="grid">
+          <article class="fly" tabindex="0"><div class="player" data-src="assets/media/horse.mp4" data-panels="2" data-a="0" data-b="1" data-split="diag" data-auto="1" data-phase="0" style="aspect-ratio:3/2"><canvas></canvas></div><h3>Horse</h3></article>
+          <article class="fly" tabindex="0"><div class="player" data-src="assets/media/caterpillar.mp4" data-panels="2" data-a="0" data-b="1" data-split="diag" data-auto="1" data-phase="1.9" style="aspect-ratio:3/2"><canvas></canvas></div><h3>Wheel loader</h3></article>
+          <article class="fly" tabindex="0"><div class="player" data-src="assets/media/family.mp4" data-panels="2" data-a="0" data-b="1" data-split="diag" data-auto="1" data-phase="3.8" style="aspect-ratio:3/2"><canvas></canvas></div><h3>Family</h3></article>
+          <article class="fly" tabindex="0"><div class="player" data-src="assets/media/telephone.mp4" data-panels="2" data-a="0" data-b="1" data-split="diag" data-auto="1" data-phase="5.7" style="aspect-ratio:3/2"><canvas></canvas></div><h3>Telephone</h3></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="method">
+      <div class="wrap">
+        <div class="section-head"><h2>How it works</h2></div>
+        <p class="lead">Feed-forward models are trained on the scene render and never see their objects alone, so Gaussians hidden behind a surface stay uncorrected and turn into floaters once an object is lifted out. ExGS supervises each object after extracting it. It keeps the architecture of its backbone, tttLRM, and adds a mask input channel, an objectness head that selects the object's Gaussians, and a share head that corrects each Gaussian after seeing where it lands.</p>
+        <div class="figure"><img loading="lazy" src="assets/overview.webp" width="2250" height="740" alt="Overview of ExGS: posed images and masks pass through the LRM backbone; a Gaussian head, an objectness head and a share head predict one set of 3D Gaussians, supervised through a scene render, an object render and a silhouette."></div>
+
+        <article class="switcher">
+          <p class="lead">Each loss on the extracted object fixes one failure. Add them one at a time:</p>
+          <div class="center"><div class="tabs" id="abl-tabs" role="tablist" aria-label="Loss ablation">
+            <button class="tab active" type="button" data-key="pix" data-caption="Pixel lift keeps the Gaussians whose source pixel lies in the mask. It leaves floaters around the object.">Pixel lift</button>
+            <button class="tab" type="button" data-key="shape" data-caption="The shape loss supervises a silhouette that counts every Gaussian on a ray, hidden or not. The floaters go, but a rim of small Gaussians remains along the outline.">+ shape loss</button>
+            <button class="tab" type="button" data-key="hinge" data-caption="The boundary hinge removes the rim. The surface still lacks fine detail, because the object's Gaussians are too opaque and hide the ones behind them.">+ boundary hinge</button>
+            <button class="tab" type="button" data-key="extop" data-caption="The opacity regularizer keeps the object's Gaussians translucent, and the fine detail returns. This is ExGS.">+ opacity regularizer</button>
+            <button class="tab" type="button" data-key="gt" data-caption="Ground truth at the same held-out view.">Ground truth</button>
+          </div></div>
+          <div class="pair">
+            <img id="abl-a" loading="lazy" src="assets/ablation/ignatius_pix.jpg" width="640" height="641" alt="Zoom on a statue extracted by the selected model">
+            <img id="abl-b" loading="lazy" src="assets/ablation/cloth_pix.jpg" width="640" height="640" alt="Zoom on a cloth object extracted by the selected model">
+          </div>
+          <div class="switcher-caption" id="abl-caption">Pixel lift keeps the Gaussians whose source pixel lies in the mask. It leaves floaters around the object.</div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="benchmarks">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Accuracy across benchmarks</h2>
+          <p>Five datasets unseen in training, 13 baselines from four families of methods.</p>
+        </div>
+        <div class="center"><div class="tabs" id="bench-tabs" role="tablist" aria-label="Benchmark">
+          <button class="tab active" type="button" data-t="t-zero">Four datasets</button>
+          <button class="tab" type="button" data-t="t-scan">ScanNet++ in 3D</button>
+          <button class="tab" type="button" data-t="t-sem">Semantic feed-forward 3DGS</button>
+        </div></div>
+        <div class="tcard" id="t-zero">
+          <h3>Zero-shot object extraction on four unseen datasets</h3>
+          <p class="sub">Every method gets the same 8 posed context views and SAM&nbsp;2 masks. Extracted objects are rendered alone on a white background at held-out views. Time is seconds per scene, for all of its objects, averaged over the four datasets.</p>
+          <div class="tscroll">
+          <table class="res">
+            <thead>
+              <tr><th rowspan="2">Method</th><th rowspan="2">Prim.</th><th class="g" colspan="3">Mip-NeRF 360</th><th class="g" colspan="3">LLFF</th><th class="g" colspan="3">LERF</th><th class="g" colspan="3">3D-OVS</th><th rowspan="2">Time (s) ↓</th></tr>
+              <tr><th>PSNR<sub>obj</sub> ↑</th><th>IoU ↑</th><th>bIoU ↑</th><th>PSNR<sub>obj</sub> ↑</th><th>IoU ↑</th><th>bIoU ↑</th><th>PSNR<sub>obj</sub> ↑</th><th>IoU ↑</th><th>bIoU ↑</th><th>PSNR<sub>obj</sub> ↑</th><th>IoU ↑</th><th>bIoU ↑</th></tr>
+            </thead>
+            <tbody>
+            <tr class="fam"><td colspan="15">Training-free lifting</td></tr>
+            <tr><td>Pixel lift</td><td class="prim">3DGS</td><td>18.27</td><td>52.2</td><td>35.6</td><td class="second">22.66</td><td>87.6</td><td>64.7</td><td>30.27</td><td>67.4</td><td>55.1</td><td>29.11</td><td>87.9</td><td>79.0</td><td class="best">1.6</td></tr>
+            <tr><td>FlashSplat</td><td class="prim">3DGS</td><td>21.00</td><td>72.8</td><td>53.3</td><td>22.44</td><td>88.2</td><td>63.4</td><td>30.68</td><td>72.7</td><td>59.4</td><td>28.73</td><td>84.6</td><td>74.1</td><td class="second">1.7</td></tr>
+            <tr><td>LUDVIG</td><td class="prim">3DGS</td><td>21.38</td><td>73.7</td><td>53.5</td><td>22.49</td><td>88.6</td><td>64.3</td><td>30.81</td><td>73.3</td><td>59.7</td><td>29.02</td><td>86.7</td><td>76.3</td><td>2.6</td></tr>
+            <tr class="fam"><td colspan="15">Per-scene optimization</td></tr>
+            <tr><td>COB-GS</td><td class="prim">3DGS</td><td>21.03</td><td>70.7</td><td>53.0</td><td class="second">22.66</td><td>88.1</td><td>64.5</td><td>31.05</td><td>75.0</td><td>64.8</td><td>28.94</td><td>84.1</td><td>75.4</td><td>25.0</td></tr>
+            <tr><td>Trace3D</td><td class="prim">3DGS</td><td>21.15</td><td>72.2</td><td>49.0</td><td>20.06</td><td>79.9</td><td>45.9</td><td>30.66</td><td>75.0</td><td>63.9</td><td>28.44</td><td>84.3</td><td>71.4</td><td>11.7</td></tr>
+            <tr><td>BEA-GS</td><td class="prim">3DGS</td><td>18.96</td><td>72.8</td><td>56.3</td><td>22.61</td><td class="second">89.7</td><td>70.7</td><td>29.31</td><td>71.0</td><td>61.4</td><td>27.65</td><td>87.1</td><td>78.0</td><td>15.4</td></tr>
+            <tr class="fam"><td colspan="15">Object models</td></tr>
+            <tr><td>ReconViaGen</td><td class="prim">3DGS</td><td>16.23</td><td>60.4</td><td>39.5</td><td>16.87</td><td>75.1</td><td>48.3</td><td>25.11</td><td>67.7</td><td>56.7</td><td>23.68</td><td>81.7</td><td>67.7</td><td>14.2</td></tr>
+            <tr><td>MV-SAM3D</td><td class="prim">3DGS</td><td>17.81</td><td>69.6</td><td>51.8</td><td>16.79</td><td>71.1</td><td>46.6</td><td>27.39</td><td>68.3</td><td>58.8</td><td>24.01</td><td>80.8</td><td>67.1</td><td>156.1</td></tr>
+            <tr><td>Pixal3D</td><td class="prim">Mesh</td><td>19.17</td><td>73.3</td><td>56.9</td><td>18.92</td><td>84.0</td><td>65.2</td><td>26.76</td><td>72.1</td><td>64.2</td><td>27.72</td><td>88.3</td><td>79.1</td><td>445.6</td></tr>
+            <tr><td>LSRM</td><td class="prim">SDF</td><td class="second">22.05</td><td class="second">81.9</td><td class="second">66.2</td><td>22.35</td><td>89.2</td><td class="second">73.4</td><td class="second">31.58</td><td class="second">83.4</td><td class="second">77.2</td><td class="second">30.94</td><td class="second">92.2</td><td class="second">86.6</td><td>25.1</td></tr>
+            <tr class="us"><td>ExGS</td><td class="prim">3DGS</td><td class="best">23.23</td><td class="best">86.3</td><td class="best">72.3</td><td class="best">23.80</td><td class="best">92.4</td><td class="best">78.7</td><td class="best">32.23</td><td class="best">86.2</td><td class="best">79.0</td><td class="best">31.60</td><td class="best">93.1</td><td class="best">88.1</td><td class="second">1.7</td></tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+        <div class="tcard" id="t-scan" hidden>
+          <h3>Object extraction on ScanNet++, measured in 3D</h3>
+          <p class="sub">Up to four objects per scene on the 50 scenes of the validation split, 8 posed context views, masks rendered from the laser-scan mesh. F-score within 2 and 5&nbsp;cm and Chamfer distance (CD) are measured against the object's mesh.</p>
+          <div class="tscroll">
+          <table class="res">
+            <thead>
+              <tr><th rowspan="2">Method</th><th class="g" colspan="2">3D F-score</th><th class="g">CD</th><th class="g" colspan="3">2D, held-out views</th><th rowspan="2">Time (s) ↓</th></tr>
+              <tr><th>2 cm ↑</th><th>5 cm ↑</th><th>(cm) ↓</th><th>PSNR<sub>obj</sub> ↑</th><th>IoU ↑</th><th>bIoU ↑</th></tr>
+            </thead>
+            <tbody>
+            <tr class="fam"><td colspan="8">Training-free lifting</td></tr>
+            <tr><td>Pixel lift</td><td>20.0</td><td>33.6</td><td>50.4</td><td>23.26</td><td>52.1</td><td>28.5</td><td class="best">1.6</td></tr>
+            <tr><td>FlashSplat</td><td>23.6</td><td>39.2</td><td>51.9</td><td>23.57</td><td>57.5</td><td>34.3</td><td class="second">1.7</td></tr>
+            <tr><td>LUDVIG</td><td>25.9</td><td>41.9</td><td>46.4</td><td>23.95</td><td>59.2</td><td>35.7</td><td>2.6</td></tr>
+            <tr class="fam"><td colspan="8">Per-scene optimization</td></tr>
+            <tr><td>COB-GS</td><td>22.6</td><td>36.6</td><td>59.6</td><td>24.24</td><td>62.7</td><td>42.1</td><td>44.5</td></tr>
+            <tr><td>Trace3D</td><td>28.1</td><td>44.9</td><td>44.6</td><td>24.90</td><td>65.5</td><td>43.4</td><td>11.7</td></tr>
+            <tr><td>BEA-GS</td><td>21.3</td><td>39.5</td><td>45.2</td><td>23.80</td><td>64.4</td><td>43.4</td><td>15.4</td></tr>
+            <tr class="fam"><td colspan="8">Object models</td></tr>
+            <tr><td>ReconViaGen</td><td>31.9</td><td>55.3</td><td>11.4</td><td>21.21</td><td>61.7</td><td>41.6</td><td>24.0</td></tr>
+            <tr><td>MV-SAM3D</td><td>33.8</td><td>59.3</td><td>10.7</td><td>22.42</td><td>64.4</td><td>42.5</td><td>256.3</td></tr>
+            <tr><td>Pixal3D</td><td class="second">51.0</td><td>66.9</td><td>12.0</td><td>22.83</td><td>67.1</td><td>52.8</td><td>1416.7</td></tr>
+            <tr><td>LSRM</td><td>50.1</td><td class="second">70.0</td><td class="second">10.5</td><td class="second">26.25</td><td class="second">74.5</td><td class="second">59.1</td><td>40.9</td></tr>
+            <tr class="us"><td>ExGS</td><td class="best">56.8</td><td class="best">81.6</td><td class="best">4.4</td><td class="best">27.39</td><td class="best">80.3</td><td class="best">66.8</td><td class="second">1.7</td></tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+        <div class="tcard narrow" id="t-sem" hidden>
+          <h3>Semantic feed-forward 3DGS, in their own setting</h3>
+          <p class="sub">Two context views, cropped to a square around each object, one run per object. Mean over the four datasets. ExGS receives the two views at its own resolution or, in the 256² row, the same 256&nbsp;×&nbsp;256 crops as SIU3R and Uni3R.</p>
+          <div class="tscroll">
+          <table class="res">
+            <thead>
+              <tr><th>Method</th><th>PSNR<sub>obj</sub> ↑</th><th>IoU ↑</th><th>bIoU ↑</th><th>Time (s) ↓</th></tr>
+            </thead>
+            <tbody>
+            <tr><td>SIU3R</td><td>21.47</td><td>67.2</td><td>47.6</td><td class="best">0.2</td></tr>
+            <tr><td>Uni3R</td><td>20.67</td><td>64.3</td><td>46.6</td><td>1.2</td></tr>
+            <tr><td>EPS3D</td><td>21.12</td><td>65.9</td><td>46.2</td><td class="second">0.4</td></tr>
+            <tr class="us"><td>ExGS, 256² crops</td><td class="second">25.29</td><td class="second">81.4</td><td class="second">67.8</td><td>0.9</td></tr>
+            <tr class="us"><td>ExGS</td><td class="best">25.84</td><td class="best">83.7</td><td class="best">70.6</td><td>0.9</td></tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+        <p class="tlegend"><b>Bold</b>: best. <u>Underlined</u>: second best.</p>
+      </div>
+    </section>
+
+    <section class="section alt" id="explore">
+      <div class="wrap">
+        <div class="section-head">
+          <h2>Explore ExGS</h2>
+          <p>Watch the four-minute walkthrough. The paper, code and trained models will follow.</p>
+        </div>
+        <div class="film">
+          <video controls playsinline preload="none" poster="assets/video_poster.jpg">
+            <source src="assets/exgs_video.mp4" type="video/mp4">
+          </video>
+        </div>
+        <div class="actions">
+          <span class="pill soon">Paper <small>soon</small></span>
+          <span class="pill soon">Code <small>soon</small></span>
+          <button class="pill" id="cite-toggle" type="button" aria-expanded="false" aria-controls="citation">Cite the paper</button>
+        </div>
+        <pre class="citation" id="citation" hidden>@misc{masciulli2026exgs,
+  title  = {ExGS: Feed-Forward Gaussian Splatting with Extractable Objects},
+  author = {Masciulli, Gabriele and Bar{\'a}th, D{\'a}niel and Ricci, Elisa and Mazzucchelli, Alessio},
+  year   = {2026},
+  note   = {Under review}
+}</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer><a href="../">Gabriele Masciulli</a> · ExGS project page</footer>
+  <div class="backdrop" id="backdrop" hidden></div>
+
+  <script>
+  (function () {
+    var REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var LINE = '#bd366c';
+
+    // The auto sweep: hold the first view, sweep to the second, hold, sweep back. Seconds.
+    var HOLD_A = 1.3, SWEEP = 1.8, HOLD_B = 2.2, CYCLE = HOLD_A + SWEEP + HOLD_B + SWEEP + 0.3;
+    function ease(t) { return t * t * (2.2 - 1.2 * t); }   // slow start, fastest past the middle, a slight slowdown
+    function share(sec) {                                   // the first view's share of the frame
+      var t = ((sec % CYCLE) + CYCLE) % CYCLE;
+      if (t < HOLD_A) return 1;
+      if (t < HOLD_A + SWEEP) return 1 - ease((t - HOLD_A) / SWEEP);
+      if (t < HOLD_A + SWEEP + HOLD_B) return 0;
+      if (t < HOLD_A + 2 * SWEEP + HOLD_B) return ease((t - HOLD_A - SWEEP - HOLD_B) / SWEEP);
+      return 1;
+    }
+
+    function Player(el) {
+      var self = this;
+      this.el = el;
+      this.canvas = el.querySelector('canvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.video = document.createElement('video');
+      this.video.muted = true; this.video.loop = true; this.video.playsInline = true; this.video.preload = 'auto';
+      this.panels = +el.dataset.panels || 2;
+      this.a = +el.dataset.a || 0;
+      this.b = el.dataset.b === undefined ? 1 : +el.dataset.b;
+      this.diag = el.dataset.split === 'diag';
+      this.auto = el.dataset.auto === '1' && !REDUCED;
+      this.phase = +el.dataset.phase || 0;
+      this.p = this.diag ? 1.03 : 0.5;        // the split, 0..1 across the frame: view a before it, view b after
+      this.manualUntil = 0;
+      this.visible = false; this.src = null; this.pending = el.dataset.src || null;
+      this.video.addEventListener('loadeddata', function () {
+        self.canvas.width = Math.round(self.video.videoWidth / self.panels);
+        self.canvas.height = self.video.videoHeight;
+        el.style.aspectRatio = self.canvas.width + ' / ' + self.canvas.height;
+        el.style.backgroundImage = 'none';
+        self.draw();
+      });
+      function point(e) {
+        var r = self.canvas.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+        self.p = Math.min(1.03, Math.max(-0.03, self.diag ? (x + y) / 2 : x));
+        self.manualUntil = performance.now() + 1500;
+        if (self.video.paused && !REDUCED) self.draw();
+      }
+      el.addEventListener('pointermove', function (e) { if (e.pointerType === 'mouse' || e.buttons) point(e); });
+      el.addEventListener('pointerdown', point);
+      if (this.pending) el.style.backgroundImage = 'url(' + this.pending.replace('.mp4', '.jpg') + ')';
+      new IntersectionObserver(function (es) {
+        self.visible = es[0].isIntersecting;
+        if (self.visible) { if (self.pending) self.load(self.pending, self.panels); self.start(); } else { self.video.pause(); }
+      }, { rootMargin: '200px 0px' }).observe(el);
+    }
+    Player.prototype.load = function (src, panels) {
+      this.panels = panels; this.pending = src;
+      if (!this.visible || this.src === src) return;
+      this.src = src; this.video.src = src; this.video.load();
+      if (!REDUCED) this.video.play().catch(function () {});
+    };
+    Player.prototype.start = function () {
+      var self = this;
+      if (!REDUCED) this.video.play().catch(function () {});
+      if (this.running) return;
+      this.running = true;
+      (function tick(now) {
+        if (!self.visible) { self.running = false; return; }
+        if (self.auto && now > self.manualUntil) self.p = -0.03 + 1.06 * share(now / 1000 + self.phase);
+        self.draw();
+        requestAnimationFrame(tick);
+      })(performance.now());
+    };
+    Player.prototype.draw = function () {
+      var v = this.video, c = this.ctx, W = this.canvas.width, H = this.canvas.height;
+      if (v.readyState < 2 || !W) return;
+      var pw = v.videoWidth / this.panels, ph = v.videoHeight, p = this.p;
+      c.drawImage(v, this.b * pw, 0, pw, ph, 0, 0, W, H);
+      c.save(); c.beginPath();
+      if (this.diag) { c.moveTo(0, 0); c.lineTo(2 * p * W, 0); c.lineTo(0, 2 * p * H); }
+      else { c.rect(0, 0, p * W, H); }
+      c.closePath(); c.clip();
+      c.drawImage(v, this.a * pw, 0, pw, ph, 0, 0, W, H);
+      c.restore();
+      c.strokeStyle = LINE; c.lineWidth = Math.max(2.5, W / 260); c.beginPath();
+      if (this.diag) { c.moveTo(2 * p * W, 0); c.lineTo(0, 2 * p * H); }
+      else { c.moveTo(p * W, 0); c.lineTo(p * W, H); }
+      c.stroke();
+      if (!this.diag) {                       // a grab handle on the divider
+        var r = Math.max(13, W / 38);
+        c.fillStyle = '#fff'; c.beginPath(); c.arc(p * W, H / 2, r, 0, 7); c.fill(); c.stroke();
+        c.fillStyle = LINE; c.beginPath();
+        c.moveTo(p * W - r * .55, H / 2); c.lineTo(p * W - r * .15, H / 2 - r * .35); c.lineTo(p * W - r * .15, H / 2 + r * .35);
+        c.moveTo(p * W + r * .55, H / 2); c.lineTo(p * W + r * .15, H / 2 - r * .35); c.lineTo(p * W + r * .15, H / 2 + r * .35);
+        c.fill();
+      }
+    };
+
+    var players = new Map();
+    document.querySelectorAll('.player').forEach(function (el) { players.set(el, new Player(el)); });
+    function activate(group, btn, cls) {
+      group.querySelectorAll('.' + cls).forEach(function (b) { b.classList.toggle('active', b === btn); b.setAttribute('aria-selected', b === btn); });
+    }
+
+    // hero: what the line reveals, and which scene
+    var heroEl = document.getElementById('hero-player'), hero = players.get(heroEl);
+    document.querySelectorAll('.mode').forEach(function (m) {
+      m.addEventListener('click', function () {
+        activate(m.parentNode, m, 'mode');
+        hero.b = +m.dataset.b;
+        heroEl.querySelector('[data-chip="b"]').textContent = m.dataset.label;
+      });
+    });
+    heroEl.querySelectorAll('.picker button').forEach(function (b) {
+      b.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+      b.addEventListener('click', function () {
+        heroEl.querySelectorAll('.picker button').forEach(function (x) { x.classList.toggle('active', x === b); });
+        hero.load(b.dataset.src, 3);
+      });
+    });
+
+    // comparison: an object, and the baseline on the left of the divider. Panel 0 or 1 is ExGS, as packed.
+    var T = { pixel: ['Pixel lift', '1.6 s'], beags: ['BEA-GS', '15.4 s'], lsrm: ['LSRM', '25.1 s'], cobgs: ['COB-GS', '25.0 s'], trace3d: ['Trace3D', '11.7 s'], lift: ['tttLRM + mask lifting', ''] };
+    var ORBIT = { panels: 4, ex: 0, methods: [['pixel', 1], ['beags', 2], ['lsrm', 3]] };
+    var SCENES = [
+      { name: 'Truck', src: 'truck', panels: 3, ex: 1, methods: [['lift', 2]] },
+      { name: 'Notebook', src: 'notebook', panels: 5, ex: 0, methods: [['lift', 1], ['beags', 2], ['cobgs', 3], ['trace3d', 4]] },
+      Object.assign({ name: 'Doll', src: 'doll' }, ORBIT),
+      Object.assign({ name: 'Toy gun', src: 'nerfgun' }, ORBIT),
+      Object.assign({ name: 'Purse', src: 'purse' }, ORBIT),
+      Object.assign({ name: 'Textbook', src: 'textbook' }, ORBIT)
+    ];
+    var cmpEl = document.getElementById('cmp-player'), cmp = players.get(cmpEl);
+    var sceneTabs = document.getElementById('cmp-scenes'), methodTabs = document.getElementById('cmp-methods');
+    function button(text) { var b = document.createElement('button'); b.type = 'button'; b.className = 'tab'; b.textContent = text; return b; }
+    function pickMethod(scene, m, btn) {
+      activate(methodTabs, btn, 'tab');
+      cmp.a = m[1]; cmp.b = scene.ex;
+      var t = T[m[0]], chip = cmpEl.querySelector('[data-chip="a"]');
+      chip.textContent = t[0] + ' ';
+      if (t[1]) { var s = document.createElement('small'); s.textContent = t[1]; chip.appendChild(s); }
+    }
+    function pickScene(scene, btn) {
+      activate(sceneTabs, btn, 'tab');
+      methodTabs.textContent = '';
+      var first = null;
+      scene.methods.forEach(function (m) {
+        var b = button(T[m[0]][0]);
+        b.addEventListener('click', function () { pickMethod(scene, m, b); });
+        methodTabs.appendChild(b); first = first || [m, b];
+      });
+      pickMethod(scene, first[0], first[1]);
+      cmpEl.style.backgroundImage = 'url(assets/media/' + scene.src + '.jpg)';
+      cmp.p = 0.5;
+      cmp.load('assets/media/' + scene.src + '.mp4', scene.panels);
+    }
+    SCENES.forEach(function (scene, i) {
+      var b = button(scene.name);
+      b.addEventListener('click', function () { pickScene(scene, b); });
+      sceneTabs.appendChild(b);
+      if (i === 0) pickScene(scene, b);
+    });
+
+    // fly-through cards: click to enlarge
+    var backdrop = document.getElementById('backdrop'), open = null;
+    function spotlight(card) {
+      if (open) open.classList.remove('is-spotlight');
+      open = card === open ? null : card;
+      if (open) open.classList.add('is-spotlight');
+      backdrop.hidden = !open;
+    }
+    document.querySelectorAll('.fly').forEach(function (card) {
+      card.addEventListener('click', function () { spotlight(card); });
+      card.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); spotlight(card); } });
+    });
+    backdrop.addEventListener('click', function () { spotlight(open); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && open) spotlight(open); });
+
+    // loss ablation
+    document.querySelectorAll('#abl-tabs .tab').forEach(function (t) {
+      t.addEventListener('click', function () {
+        activate(t.parentNode, t, 'tab');
+        document.getElementById('abl-a').src = 'assets/ablation/ignatius_' + t.dataset.key + '.jpg';
+        document.getElementById('abl-b').src = 'assets/ablation/cloth_' + t.dataset.key + '.jpg';
+        document.getElementById('abl-caption').textContent = t.dataset.caption;
+      });
+    });
+
+    // benchmark tables
+    document.querySelectorAll('#bench-tabs .tab').forEach(function (t) {
+      t.addEventListener('click', function () {
+        activate(t.parentNode, t, 'tab');
+        document.querySelectorAll('.tcard').forEach(function (c) { c.hidden = c.id !== t.dataset.t; });
+      });
+    });
+
+    // citation
+    var cite = document.getElementById('cite-toggle');
+    cite.addEventListener('click', function () {
+      var el = document.getElementById('citation'); el.hidden = !el.hidden;
+      cite.setAttribute('aria-expanded', !el.hidden);
+    });
+  })();
+  </script>
+</body>
+</html>
