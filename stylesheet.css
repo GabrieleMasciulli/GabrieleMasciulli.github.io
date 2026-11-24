@@ -88,13 +88,13 @@ ul {
 }
 
 .paper-img {
-  flex: 0 0 200px;
+  flex: 0 0 220px;
   padding: 20px;
 }
 
 .paper-img video {
   display: block;
-  width: 200px;
+  width: 220px;
   height: auto;
 }
 
