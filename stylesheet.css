@@ -88,17 +88,14 @@ ul {
 }
 
 .paper-img {
-  flex: 0 0 160px;
+  flex: 0 0 200px;
   padding: 20px;
 }
 
-.paper-img svg,
-.paper-img img {
+.paper-img video {
   display: block;
-  width: 160px;
-  height: 160px;
-  object-fit: cover;
-  background: #f4f4f4;
+  width: 200px;
+  height: auto;
 }
 
 .paper-text {
@@ -111,30 +108,6 @@ ul {
 
 .paper-text p {
   margin: 14px 0 0;
-}
-
-/* placeholder teaser, until there is a real image */
-.scene {
-  filter: blur(6px);
-  transition: opacity .2s ease-in-out;
-}
-
-.scene ellipse {
-  fill: #b5b5b5;
-  opacity: .6;
-}
-
-.obj {
-  filter: blur(2px);
-}
-
-.obj ellipse {
-  fill: #1772d0;
-  opacity: .75;
-}
-
-.paper:hover .scene {
-  opacity: .15;
 }
 
 /* experience and education */
