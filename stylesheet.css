@@ -1,0 +1,191 @@
+body {
+  margin: 8px;
+  background: #fff;
+  color: #000;
+  font-family: 'Lato', Verdana, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+a {
+  color: #1772d0;
+  text-decoration: none;
+}
+
+a:focus,
+a:hover {
+  color: #f09228;
+}
+
+.page {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* intro: bio on the left, round photo on the right */
+.intro {
+  display: flex;
+  align-items: center;
+}
+
+.intro-text {
+  width: 63%;
+  padding: 2.5%;
+}
+
+.intro-photo {
+  width: 37%;
+  padding: 2.5%;
+}
+
+.intro-photo img,
+.photo-placeholder {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.photo-placeholder {
+  background: #eee;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.name {
+  font-size: 32px;
+  text-align: center;
+  margin: 14px 0;
+}
+
+.links {
+  text-align: center;
+}
+
+/* sections */
+.block {
+  padding: 20px 20px 0;
+}
+
+h2 {
+  font-size: 22px;
+  font-weight: 400;
+  margin: 0 0 14px;
+}
+
+ul {
+  margin: 0;
+  padding-left: 40px;
+}
+
+/* papers: square teaser on the left, text on the right */
+.paper {
+  display: flex;
+  align-items: center;
+}
+
+.paper-img {
+  flex: 0 0 160px;
+  padding: 20px;
+}
+
+.paper-img svg,
+.paper-img img {
+  display: block;
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  background: #f4f4f4;
+}
+
+.paper-text {
+  padding: 20px;
+}
+
+.papertitle {
+  font-weight: 700;
+}
+
+.paper-text p {
+  margin: 14px 0 0;
+}
+
+/* placeholder teaser, until there is a real image */
+.scene {
+  filter: blur(6px);
+  transition: opacity .2s ease-in-out;
+}
+
+.scene ellipse {
+  fill: #b5b5b5;
+  opacity: .6;
+}
+
+.obj {
+  filter: blur(2px);
+}
+
+.obj ellipse {
+  fill: #1772d0;
+  opacity: .75;
+}
+
+.paper:hover .scene {
+  opacity: .15;
+}
+
+/* experience and education */
+.cv {
+  width: 100%;
+  border-spacing: 0;
+}
+
+.cv td {
+  padding: 0 0 12px;
+  vertical-align: top;
+}
+
+.cv .when {
+  width: 150px;
+  color: #777;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .intro {
+    flex-direction: column-reverse;
+  }
+
+  .intro-text {
+    width: 100%;
+  }
+
+  .intro-photo {
+    width: 45%;
+  }
+
+  .paper {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .paper-img {
+    padding-bottom: 0;
+  }
+
+  .paper-text {
+    padding-top: 12px;
+  }
+
+  .cv td {
+    display: block;
+    padding-bottom: 0;
+  }
+
+  .cv td:last-child {
+    padding-bottom: 12px;
+  }
+}
